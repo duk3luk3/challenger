@@ -1,0 +1,15 @@
+<!doctype html>
+<title>Hello from Flask</title>
+<h1>Hello!</h1>
+<p>Look at those nice relays!</p>
+  <table>
+    <tr><th>Nickname</th><th>Consensus Weight Fraction</th>
+{% for fp in relays %}
+<tr><td>{{ fp[0] }}</td><td>{{ fp[1] }}</td></tr>
+{% endfor %}
+  </table>
+
+<p>
+  The combined CWF is: {{ cwf }}
+</p>
+

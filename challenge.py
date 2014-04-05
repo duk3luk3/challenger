@@ -1,14 +1,40 @@
 #!/usr/bin/env python
-import urllib2
 import json
 import optparse
 import os
 import sys
 from datetime import timedelta, datetime
+from flask import Flask, render_template
+from onion_py.manager import Manager
+from onion_py.objects import *
+
+app = Flask(__name__)
+
+@app.route("/")
+def hello():
+  fingerprints = read_fingerprints("fingerprints.txt")
+  fingerprints = ",".join(fingerprints)
+  print(fingerprints)
+  return render_template('index.html',relays=[fingerprints])
+
+@app.route("/relays/<fp>")
+def show_relays(fp):
+  fingerprints = fp.split(",")
+  manager = Manager()
+  docs = [manager.query('details', lookup=f, fields=['consensus_weight_fraction','nickname']) for f in fingerprints]
+  print("{} docs found".format(len(docs)))
+  relays = []
+  cwf_sum = 0.0
+  for d in docs:
+    if len(d.relays) > 0:
+      relays.append([d.relays[0].nickname,d.relays[0].consensus_weight_fraction])
+      cwf_sum = cwf_sum + d.relays[0].consensus_weight_fraction
+
+  return render_template('relays.html', relays=relays, cwf=cwf_sum)
+
 
 
 def main():
-    options = parse_options()
     fingerprints = read_fingerprints(options.in_fingerprints)
     download_and_combine_documents(options.out_bandwidth, 'bandwidth',
                                    fingerprints)
@@ -19,30 +45,6 @@ def main():
     download_and_combine_documents(options.out_uptime, 'uptime',
                                    fingerprints)
 
-def parse_options():
-    parser = optparse.OptionParser()
-    parser.add_option('-f', action='store', dest='in_fingerprints',
-                      default='fingerprints.txt', metavar='FILE',
-                      help='read relay fingerprints and/or hashed bridge '
-                           'fingerprint as input [default: %default]')
-    parser.add_option('-b', action='store', dest='out_bandwidth',
-                      default='combined-bandwidth.json', metavar='FILE',
-                      help='write combined bandwidth document as output '
-                           '[default: %default]')
-    parser.add_option('-w', action='store', dest='out_weights',
-                      default='combined-weights.json', metavar='FILE',
-                      help='write combined weights document as output '
-                           '[default: %default]')
-    parser.add_option('-u', action='store', dest='out_uptime',
-                      default='combined-uptime.json', metavar='FILE',
-                      help='write combined uptime document as output '
-                           '[default: %default]')
-    parser.add_option('-c', action='store', dest='out_clients',
-                      default='combined-clients.json', metavar='FILE',
-                      help='write combined clients document as output '
-                           '[default: %default]')
-    (options, args) = parser.parse_args()
-    return options
 
 def read_fingerprints(fingerprints_path):
     if not os.path.exists(fingerprints_path):
@@ -78,7 +80,7 @@ def download_documents(resource_name, fingerprints):
                    resource_name, fingerprint, )
         try:
             response = urllib2.urlopen(request)
-        except urllib2.HTTPError, error:
+        except urllib2.HTTPError as error:
             print("Error " + str(error.code) + ": " + error.reason)
         downloads.append(response.read())
     return downloads
@@ -123,7 +125,7 @@ def combine_documents(documents):
     fingerprints = []
     graphs = {}
     for document in documents:
-        for key, value in document.iteritems():
+        for key, value in document.items():
             if key == 'fingerprint':
                 fingerprints.append(value)
             elif key in graphs:
@@ -132,7 +134,7 @@ def combine_documents(documents):
                 graphs[key] = [value]
     combined_document = {}
     combined_document['fingerprints'] = fingerprints
-    for key, value in graphs.iteritems():
+    for key, value in graphs.items():
         combined_document[key] = combine_graphs(value)
     return combined_document
 
@@ -142,13 +144,13 @@ def combine_graphs(graphs):
     """
     histories = {}
     for graph in graphs:
-        for key, value in graph.iteritems():
+        for key, value in graph.items():
             if key in histories:
                 histories[key].append(value)
             else:
                 histories[key] = [value]
     combined_graph = {}
-    for key, value in histories.iteritems():
+    for key, value in histories.items():
         combined_graph[key] = combine_histories(value)
     return combined_graph
 
@@ -211,6 +213,7 @@ def write_combined_document_to_disk(out_path, combined_document):
     out_file.close()
 
 if __name__ == '__main__':
-    main()
+    app.debug = True
+    app.run()
 
 

@@ -1,0 +1,9 @@
+<!doctype html>
+<title>Hello from Flask</title>
+<h1>Hello!</h1>
+<div>
+{% for fp in relays %}
+  <a href="/relays/{{fp}}">Why don't you look at some relays?</a>
+{% endfor %}
+</div>
+
